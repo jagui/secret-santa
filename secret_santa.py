@@ -48,11 +48,11 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.yml')
 
 class Person:
     def __init__(self, name, email, invalid_matches):
-        self.name = unicode(name)
-        self.email = unicode(email)
+        self.name = name
+        self.email = email
         self.invalid_matches = invalid_matches
 
-    def __unicode__(self):
+    def __str__(self):
         return "%s <%s>" % (self.name, self.email)
 
 
@@ -61,19 +61,18 @@ class Pair:
         self.giver = giver
         self.receiver = receiver
 
-    def __unicode__(self):
-        return u'%s ---> %s' % (self.giver.name,
-                                self.receiver.name)
+    def __str__(self):
+        return u'%s ---> %s' % (self.giver.name, self.receiver.name)
 
 
 def parse_yaml(yaml_path=CONFIG_PATH):
-    return yaml.load(open(yaml_path))
+    return yaml.load(open(yaml_path, encoding='utf-8'), Loader=yaml.FullLoader)
 
 
 def choose_receiver(giver, receivers):
     choice = random.choice(receivers)
     if choice.name in giver.invalid_matches or giver.name == choice.name:
-        if len(receivers) is 1:
+        if len(receivers) == 1:
             raise Exception('Only one receiver left, try again')
         return choose_receiver(giver, receivers)
     else:
@@ -104,13 +103,13 @@ def main(argv=None):
         argv = sys.argv
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "shc", ["send", "help"])
-        except getopt.error, msg:
+            opts, _ = getopt.getopt(argv[1:], "shc", ["send", "help"])
+        except getopt.error as msg:
             raise Usage(msg)
 
         # option processing
         send = False
-        for option, value in opts:
+        for option, _ in opts:
             if option in ("-s", "--send"):
                 send = True
             if option in ("-h", "--help"):
@@ -120,7 +119,7 @@ def main(argv=None):
         for key in REQRD:
             if key not in config.keys():
                 raise Exception(
-                    'Required parameter %s not in yaml config file!' % (key,))
+                    'Required parameter %s not in yaml config file!' % (key, ))
 
         participants = config['PARTICIPANTS']
         dont_pair = config['DONT-PAIR']
@@ -145,7 +144,7 @@ def main(argv=None):
         receivers = givers[:]
         pairs = create_pairs(givers, receivers)
         if not send:
-            print u"""
+            print(u"""
 Test pairings:
 
 %s
@@ -155,11 +154,11 @@ call with the --send argument:
 
     $ python secret_santa.py --send
 
-            """ % format(u"\n".join([unicode(p) for p in pairs]))
+            """ % format(u"\n".join([str(p) for p in pairs])))
 
         if send:
-            server = smtplib.SMTP_SSL(
-                config['SMTP_SERVER'], config['SMTP_PORT'])
+            server = smtplib.SMTP_SSL(config['SMTP_SERVER'],
+                                      config['SMTP_PORT'])
             server.ehlo()
             server.login(config['USERNAME'], config['PASSWORD'])
         for pair in pairs:
@@ -167,12 +166,12 @@ call with the --send argument:
             now = zone.localize(datetime.datetime.now())
             # Sun, 21 Dec 2008 06:25:23 +0000
             date = now.strftime('%a, %d %b %Y %T %Z')
-            message_id = '<%s@%s>' % (
-                str(time.time()) + str(random.random()), socket.gethostname())
-            frm = unicode(config['FROM'])
+            message_id = '<%s@%s>' % (str(time.time()) + str(random.random()),
+                                      socket.gethostname())
+            frm = config['FROM']
             to = pair.giver.email
-            subject = unicode(config['SUBJECT']).format(
-                santa=pair.giver.name, santee=pair.receiver.name)
+            subject = config['SUBJECT'].format(santa=pair.giver.name,
+                                               santee=pair.receiver.name)
             body = (HEADER + config['MESSAGE']).format(
                 date=date,
                 message_id=message_id,
@@ -183,15 +182,14 @@ call with the --send argument:
                 santee=pair.receiver.name,
             )
             if send:
-                result = server.sendmail(
-                    frm.encode('utf-8'), [to.encode('utf-8')], body.encode('utf-8'))
-                print "Emailed %s <%s>" % (pair.giver.name, to)
+                server.sendmail(frm, [to], body.encode('utf8'))
+                print("Emailed %s <%s>" % (pair.giver.name, to))
 
         if send:
             server.quit()
 
-    except Usage, err:
-        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
+    except Usage as e:
+        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(e.msg)
         print >> sys.stderr, "\t for help use --help"
         return 2
 
